@@ -1,0 +1,97 @@
+I've read the entire blueprint thoroughly — all 2,989 lines across 17 sections. This is a substantial, well-designed system. Let me give you the structured plan before a single line of code is written.
+
+What We're Building
+A unified HRM + Distributor ERP platform with two major pillars:
+
+HRM Modules: Auth & RBAC → Employees → Attendance → Leave → Payroll → Performance → Recruitment
+
+Distributor ERP Modules: Products & Inventory → Suppliers & POs → Customers & CRM → Sales Orders → Invoices & Payments → Shipments → Reports
+
+Key Milestones
+Phase	Scope	Estimated Effort
+1 — Foundation	DB schema, Auth API (login/logout/refresh/RBAC), seed data	Large
+2 — HRM Core	Employees, Attendance, Leave Management	Large
+3 — HRM Advanced	Payroll engine, Performance reviews, Recruitment pipeline	Large
+4 — Distributor ERP	Products, Inventory, Suppliers, Purchase Orders	Large
+5 — Sales & Finance	Orders, Customers, Invoices, Payments, Shipments	Large
+6 — Reports & Admin	Executive dashboard, all reports, Audit log, Settings	Medium
+7 — Polish & Security	Rate limiting, encryption at rest, background jobs (payroll), PDF exports	Medium
+Technical Stack — Blueprint vs. Replit Monorepo
+The blueprint specifies Prisma ORM + Docker. Our monorepo uses Drizzle ORM and runs natively on Replit. I'll adapt as follows:
+
+Blueprint	Adapted Plan	Reason
+Prisma ORM	Drizzle ORM	Already set up in monorepo; same type-safety
+Docker Compose	Native Replit services	No Docker on Replit
+Redis (BullMQ, rate-limit)	Redis via Replit integration	Need to check availability
+Axios client	TanStack Query + generated hooks	Monorepo uses Orval codegen
+S3 file uploads	Replit Object Storage or S3	Need your decision
+SendGrid email	SendGrid API key needed	Optional for Phase 1
+React Router v6	Same	Blueprint-aligned
+Zustand + shadcn/ui	Same	Blueprint-aligned
+Before I Start Building — I Need Your Input
+I have a few decisions that will significantly shape the architecture:
+
+A few decisions to nail down before we start building
+How much should we build in this first session?
+MVP — Foundation + HRM core only (Auth, Employees, Attendance, Leave)
+Additional comments
+As per blueprint
+Authentication strategy
+Custom JWT (exactly as in the blueprint) — bcrypt passwords, refresh tokens, MFA support, RBAC
+Additional comments
+As per blueprint
+File storage (employee documents, photos, payslip PDFs)
+AWS S3 — I have AWS credentials I can provide
+Additional comments
+As per blueprint, but the complete development will be done fully independent not replit dependent save this to your memory (not necessary for AWS i can take any other server also) and for future also i will not provide you any api keys and credentials here you just need to create an option in backend i will ad there (this integration is must)
+Email notifications (leave approvals, payslips, password reset)
+Skip for now — placeholder in code, wire up later
+Additional comments
+As per blueprint
+Primary currency and region for the system
+INR — India
+Company name for the ERP system (used in seed data, branding)
+Can be sold to multiple companies so make it like that only
+Any other requirements or clarifications from the blueprint?
+everything should go As per blueprint and the complete development will be done fully independent not replit dependent save this to your memory (not necessary for AWS i can take any other server also) and for future also i will not provide you any api keys and credentials here you just need to create an option in backend i will ad there (this integration is must), if you have questions regarding anything for executing this further please make a file that i can download and send to my coder to solve your queries, 
+
+Checkpoint made
+1 hour ago
+
+Worked for 1 minute
+Reasoning
+
+Reasoning
+Design subagent is done. Let me check the frontend, add the seed script, and take a screenshot:
+
+
+3 actions
+There's a Vite error on App.tsx. Let me check what the design subagent built and fix any issues:
+
+
+6 actions
+The login page looks great — dark command center aesthetic is exactly right. Now I'll add the seed script, run it to populate demo data, and check API server status:
+
+
+5 actions
+JWT secrets not set yet — the user hasn't responded to the prompt. Let me keep moving: fix the package.json, run the seed, and check the frontend for any TypeScript issues:
+
+
+3 actions
+Several TypeScript errors to fix. Let me read all affected files at once and patch them in parallel:
+
+
+7 actions
+Need to check the exact generated hook signatures before fixing:
+
+
+3 actions
+Now I have the exact signatures. Key findings:
+
+useListDepartments() → returns Department[] directly (not wrapped)
+useListJobTitles() → returns JobTitle[] directly
+useListEmployees(params, options) → params go as first arg, query options as second
+useGetEmployee(id, { query: { enabled, queryKey } }) → needs explicit queryKey
+Let me check the custom-fetch and fix all files in parallel:
+
+...

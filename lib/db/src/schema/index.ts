@@ -7,4 +7,7 @@ export * from "./jobTitles";
 export * from "./employees";
 export * from "./attendance";
 export * from "./leave";
+export * from "./payroll";
+export * from "./performance";
+export * from "./recruitment";
 export * from "./relations";

@@ -11,12 +11,24 @@ import {
   leaveBalancesTable,
   leaveRequestsTable,
 } from "./leave";
+import {
+  payPeriodsTable,
+  salaryComponentsTable,
+  payslipsTable,
+  payslipLinesTable,
+} from "./payroll";
+import { reviewCyclesTable, performanceReviewsTable } from "./performance";
+import { jobsTable, applicationsTable, interviewsTable } from "./recruitment";
 
 export const companiesRelations = relations(companiesTable, ({ many }) => ({
   users: many(usersTable),
   employees: many(employeesTable),
   departments: many(departmentsTable),
   jobTitles: many(jobTitlesTable),
+  payPeriods: many(payPeriodsTable),
+  salaryComponents: many(salaryComponentsTable),
+  reviewCycles: many(reviewCyclesTable),
+  jobs: many(jobsTable),
 }));
 
 export const usersRelations = relations(usersTable, ({ one, many }) => ({
@@ -40,6 +52,7 @@ export const departmentsRelations = relations(departmentsTable, ({ one, many }) 
     references: [companiesTable.id],
   }),
   employees: many(employeesTable),
+  jobs: many(jobsTable),
 }));
 
 export const jobTitlesRelations = relations(jobTitlesTable, ({ one, many }) => ({
@@ -70,6 +83,10 @@ export const employeesRelations = relations(employeesTable, ({ one, many }) => (
   attendance: many(attendanceTable),
   leaveRequests: many(leaveRequestsTable),
   leaveBalances: many(leaveBalancesTable),
+  payslips: many(payslipsTable),
+  reviewsAsEmployee: many(performanceReviewsTable, { relationName: "reviewedEmployee" }),
+  reviewsAsReviewer: many(performanceReviewsTable, { relationName: "reviewer" }),
+  jobsAsHiringManager: many(jobsTable),
 }));
 
 export const attendanceRelations = relations(attendanceTable, ({ one }) => ({
@@ -119,5 +136,114 @@ export const leaveRequestsRelations = relations(leaveRequestsTable, ({ one }) =>
   policy: one(leavePoliciesTable, {
     fields: [leaveRequestsTable.policyId],
     references: [leavePoliciesTable.id],
+  }),
+}));
+
+// ── Payroll Relations ─────────────────────────────────────────────────────────
+
+export const payPeriodsRelations = relations(payPeriodsTable, ({ one, many }) => ({
+  company: one(companiesTable, {
+    fields: [payPeriodsTable.companyId],
+    references: [companiesTable.id],
+  }),
+  payslips: many(payslipsTable),
+}));
+
+export const salaryComponentsRelations = relations(salaryComponentsTable, ({ one, many }) => ({
+  company: one(companiesTable, {
+    fields: [salaryComponentsTable.companyId],
+    references: [companiesTable.id],
+  }),
+  payslipLines: many(payslipLinesTable),
+}));
+
+export const payslipsRelations = relations(payslipsTable, ({ one, many }) => ({
+  company: one(companiesTable, {
+    fields: [payslipsTable.companyId],
+    references: [companiesTable.id],
+  }),
+  employee: one(employeesTable, {
+    fields: [payslipsTable.employeeId],
+    references: [employeesTable.id],
+  }),
+  period: one(payPeriodsTable, {
+    fields: [payslipsTable.payPeriodId],
+    references: [payPeriodsTable.id],
+  }),
+  lines: many(payslipLinesTable),
+}));
+
+export const payslipLinesRelations = relations(payslipLinesTable, ({ one }) => ({
+  payslip: one(payslipsTable, {
+    fields: [payslipLinesTable.payslipId],
+    references: [payslipsTable.id],
+  }),
+  component: one(salaryComponentsTable, {
+    fields: [payslipLinesTable.componentId],
+    references: [salaryComponentsTable.id],
+  }),
+}));
+
+// ── Performance Relations ─────────────────────────────────────────────────────
+
+export const reviewCyclesRelations = relations(reviewCyclesTable, ({ one, many }) => ({
+  company: one(companiesTable, {
+    fields: [reviewCyclesTable.companyId],
+    references: [companiesTable.id],
+  }),
+  reviews: many(performanceReviewsTable),
+}));
+
+export const performanceReviewsRelations = relations(performanceReviewsTable, ({ one }) => ({
+  company: one(companiesTable, {
+    fields: [performanceReviewsTable.companyId],
+    references: [companiesTable.id],
+  }),
+  cycle: one(reviewCyclesTable, {
+    fields: [performanceReviewsTable.cycleId],
+    references: [reviewCyclesTable.id],
+  }),
+  employee: one(employeesTable, {
+    fields: [performanceReviewsTable.employeeId],
+    references: [employeesTable.id],
+    relationName: "reviewedEmployee",
+  }),
+  reviewer: one(employeesTable, {
+    fields: [performanceReviewsTable.reviewerId],
+    references: [employeesTable.id],
+    relationName: "reviewer",
+  }),
+}));
+
+// ── Recruitment Relations ─────────────────────────────────────────────────────
+
+export const jobsRelations = relations(jobsTable, ({ one, many }) => ({
+  company: one(companiesTable, {
+    fields: [jobsTable.companyId],
+    references: [companiesTable.id],
+  }),
+  department: one(departmentsTable, {
+    fields: [jobsTable.departmentId],
+    references: [departmentsTable.id],
+  }),
+  hiringManager: one(employeesTable, {
+    fields: [jobsTable.hiringManagerId],
+    references: [employeesTable.id],
+  }),
+  applications: many(applicationsTable),
+}));
+
+export const applicationsRelations = relations(applicationsTable, ({ one, many }) => ({
+  job: one(jobsTable, {
+    fields: [applicationsTable.jobId],
+    references: [jobsTable.id],
+  }),
+  interviews: many(interviewsTable),
+}));
+
+export const interviewsRelations = relations(interviewsTable, ({ one }) => ({
+  application: one(applicationsTable, {
+    fields: [interviewsTable.applicationId],
+    references: [applicationsTable.id],
   }),
 }));

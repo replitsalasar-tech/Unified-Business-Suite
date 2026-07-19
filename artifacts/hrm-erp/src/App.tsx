@@ -16,6 +16,9 @@ import Departments from '@/pages/departments';
 import JobTitles from '@/pages/job-titles';
 import Attendance from '@/pages/attendance';
 import Leave from '@/pages/leave';
+import Payroll from '@/pages/payroll';
+import Performance from '@/pages/performance';
+import Recruitment from '@/pages/recruitment';
 import Settings from '@/pages/settings';
 import NotFound from '@/pages/not-found';
 
@@ -46,6 +49,9 @@ function Router() {
       <Route path="/job-titles"><PrivateRoute component={JobTitles} /></Route>
       <Route path="/attendance"><PrivateRoute component={Attendance} /></Route>
       <Route path="/leave"><PrivateRoute component={Leave} /></Route>
+      <Route path="/payroll"><PrivateRoute component={Payroll} /></Route>
+      <Route path="/performance"><PrivateRoute component={Performance} /></Route>
+      <Route path="/recruitment"><PrivateRoute component={Recruitment} /></Route>
       <Route path="/settings"><PrivateRoute component={Settings} /></Route>
 
       <Route component={NotFound} />

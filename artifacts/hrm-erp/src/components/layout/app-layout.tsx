@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'wouter';
-import { Building, Users, LayoutDashboard, Calendar, Clock, Settings, LogOut, Tags, Briefcase } from 'lucide-react';
+import { Building, Users, LayoutDashboard, Calendar, Clock, Settings, LogOut, Tags, Briefcase, DollarSign, Star, UserPlus } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -10,6 +10,9 @@ const NAV_ITEMS = [
   { name: 'Employees', path: '/employees', icon: Users },
   { name: 'Attendance', path: '/attendance', icon: Clock },
   { name: 'Leave', path: '/leave', icon: Calendar },
+  { name: 'Payroll', path: '/payroll', icon: DollarSign, adminOnly: true },
+  { name: 'Performance', path: '/performance', icon: Star },
+  { name: 'Recruitment', path: '/recruitment', icon: UserPlus, adminOnly: true },
   { name: 'Departments', path: '/departments', icon: Building, adminOnly: true },
   { name: 'Job Titles', path: '/job-titles', icon: Briefcase, adminOnly: true },
   { name: 'Settings', path: '/settings', icon: Settings, adminOnly: true },
