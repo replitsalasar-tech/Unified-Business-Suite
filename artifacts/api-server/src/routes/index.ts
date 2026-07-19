@@ -11,6 +11,14 @@ import dashboardRouter from "./dashboard";
 import payrollRouter from "./payroll";
 import performanceRouter from "./performance";
 import recruitmentRouter from "./recruitment";
+import productsRouter from "./products";
+import inventoryRouter from "./inventory";
+import suppliersRouter from "./suppliers";
+import customersRouter from "./customers";
+import ordersRouter from "./orders";
+import invoicesRouter from "./invoices";
+import shipmentsRouter from "./shipments";
+import reportsRouter from "./reports";
 
 const router: IRouter = Router();
 
@@ -29,5 +37,13 @@ router.use("/v1/dashboard", dashboardRouter);
 router.use("/v1/payroll", payrollRouter);
 router.use("/v1/performance", performanceRouter);
 router.use("/v1/recruitment", recruitmentRouter);
+router.use("/v1/products", productsRouter);
+router.use("/v1/inventory", inventoryRouter);
+router.use("/v1/suppliers", suppliersRouter);
+router.use("/v1/customers", customersRouter);
+router.use("/v1/orders", ordersRouter);
+router.use("/v1/invoices", invoicesRouter);
+router.use("/v1/shipments", shipmentsRouter);
+router.use("/v1/reports", reportsRouter);
 
 export default router;

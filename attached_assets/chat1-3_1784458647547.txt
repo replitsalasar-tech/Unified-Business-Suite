@@ -1,0 +1,213 @@
+PROJECT SUMMARY
+---------------
+Project: Multi-tenant HRM + Distributor ERP (Blueprint is the single source of truth)
+
+Goal:
+Build a production-grade SaaS platform that is completely blueprint-compliant and deployment-independent (NOT Replit-dependent). Replit is only the development environment.
+
+Core Principles:
+- Follow the blueprint exactly whenever possible.
+- If Replit constraints differ (Docker/Prisma/etc.), adapt implementation without changing architecture.
+- Never hardcode secrets or cloud credentials.
+- Every external service (AWS S3, Email, Redis, etc.) must exist as configurable integrations in backend settings.
+- Multi-company architecture from day one.
+- India (INR) as default locale, but system must remain globally deployable.
+
+High-Level Modules
+------------------
+HR:
+- Authentication / RBAC / MFA
+- Employees
+- Attendance
+- Leave
+- Payroll
+- Performance
+- Recruitment
+
+Distributor ERP:
+- Products
+- Inventory
+- Suppliers
+- Purchase Orders
+- Customers
+- Sales
+- Invoices
+- Payments
+- Shipments
+- Reports
+
+TECHNICAL DECISIONS
+-------------------
+Backend:
+- Node + Express + TypeScript
+- PostgreSQL
+- Drizzle ORM (adapted from Prisma blueprint)
+- JWT Auth
+- Redis integration ready
+- Modular REST API
+- Multi-tenant
+
+Frontend:
+- React
+- Vite
+- Tailwind
+- shadcn/ui
+- TanStack Query
+- Generated API hooks
+
+Important:
+Never hardcode:
+- JWT secrets
+- AWS credentials
+- Email credentials
+- Redis credentials
+Everything must be configurable.
+
+==================================================
+CHAT 1 + CHAT 2 (CONDENSED PROGRESS)
+==================================================
+
+Phase 1 completed and audited against blueprint.
+
+Critical fixes completed:
+- API version prefix mismatch fixed (/api/v1)
+- Account lockout after failed logins
+- Proper MFA token flow
+- Missing roles added
+- Employee search/filter implemented
+- Leave balance logic fixed
+- Employee edit page created
+- Error envelope improved
+- XSS middleware added
+- Login verified end-to-end
+
+Verified working:
+- JWT authentication
+- Refresh token rotation
+- RBAC
+- MFA setup/disable
+- Audit logging
+- Dashboard
+- Multi-tenant isolation
+- Seed data
+
+Phase 2 completed.
+
+Database:
+- pay_periods
+- salary_components
+- payslips
+- payslip_lines
+- review_cycles
+- performance_reviews
+- jobs
+- applications
+- interviews
+
+Backend routes:
+Payroll
+Performance
+Recruitment
+
+Frontend pages:
+- Payroll
+- Performance
+- Recruitment
+
+Sidebar updated.
+
+API endpoints verified.
+
+JWT secrets moved to environment.
+
+==================================================
+CURRENT STATE (END OF CHAT 3)
+==================================================
+
+Status:
+Phase 2 has been re-audited.
+
+Servers:
+- Backend starts
+- Frontend starts
+- Phase 2 routes return HTTP 200
+
+Preview:
+Preview problem is NOT application logic.
+Issue is Replit artifact/workflow registration, not backend/frontend implementation.
+
+Known work completed:
+- Workflow debugging
+- Port conflicts fixed
+- Orphan processes removed
+- Services restarted
+
+Final work performed before stopping:
+- Fix performance rating enum mismatch.
+- Begin Phase 3 foundation.
+- Start ERP schema relations.
+- Update schema index.
+- Continue Distributor ERP implementation.
+
+Last active task:
+"Update schema index, fix performance enum in code, and add ERP relations in parallel."
+
+==================================================
+KNOWN CONFIGURATION
+==================================================
+
+Environment:
+JWT_ACCESS_SECRET
+JWT_REFRESH_SECRET
+
+Must remain environment variables only.
+
+Seed:
+Admin account:
+admin@acme-india.com
+Password:
+Admin@1234
+
+If database is reset:
+Run seed again.
+
+==================================================
+NEXT TASK (START HERE)
+==================================================
+
+DO NOT rebuild or re-audit Phase 1 or Phase 2 unless a blocking issue is found.
+
+Resume exactly after Chat 3.
+
+1. Finish any remaining Phase 2 cleanup:
+   - Verify performance rating enum consistency.
+   - Verify schema index exports.
+   - Verify ERP relations.
+
+2. Continue Phase 3 strictly following blueprint:
+   - Distributor ERP database schema
+   - Products
+   - Inventory
+   - Suppliers
+   - Purchase Orders
+   - Relationships
+   - API routes
+   - OpenAPI updates
+   - Generated client
+   - Frontend pages
+   - Sidebar updates
+   - Database migrations
+   - Seed data
+   - End-to-end verification
+
+3. Maintain blueprint compliance at every step.
+
+RULES
+-----
+- Do not redesign architecture.
+- Do not replace technologies unless required by platform limitations.
+- Preserve multi-tenant design.
+- Preserve RBAC.
+- Preserve API structure.
+- Preserve generated API client workflow.
+- Continue from current implementation instead of rebuilding completed work.

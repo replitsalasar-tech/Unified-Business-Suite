@@ -22,6 +22,16 @@ import Recruitment from '@/pages/recruitment';
 import Settings from '@/pages/settings';
 import NotFound from '@/pages/not-found';
 
+// ERP Pages
+import Products from '@/pages/products';
+import Inventory from '@/pages/inventory';
+import Suppliers from '@/pages/suppliers';
+import Customers from '@/pages/customers';
+import Orders from '@/pages/orders';
+import Invoices from '@/pages/invoices';
+import Shipments from '@/pages/shipments';
+import Reports from '@/pages/reports';
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -53,6 +63,16 @@ function Router() {
       <Route path="/performance"><PrivateRoute component={Performance} /></Route>
       <Route path="/recruitment"><PrivateRoute component={Recruitment} /></Route>
       <Route path="/settings"><PrivateRoute component={Settings} /></Route>
+
+      {/* ERP Routes */}
+      <Route path="/products"><PrivateRoute component={Products} /></Route>
+      <Route path="/inventory"><PrivateRoute component={Inventory} /></Route>
+      <Route path="/suppliers"><PrivateRoute component={Suppliers} /></Route>
+      <Route path="/customers"><PrivateRoute component={Customers} /></Route>
+      <Route path="/orders"><PrivateRoute component={Orders} /></Route>
+      <Route path="/invoices"><PrivateRoute component={Invoices} /></Route>
+      <Route path="/shipments"><PrivateRoute component={Shipments} /></Route>
+      <Route path="/reports"><PrivateRoute component={Reports} /></Route>
 
       <Route component={NotFound} />
     </Switch>

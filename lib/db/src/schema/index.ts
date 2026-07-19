@@ -10,4 +10,9 @@ export * from "./leave";
 export * from "./payroll";
 export * from "./performance";
 export * from "./recruitment";
+// Phase 3 — Distributor ERP
+export * from "./erp-products";
+export * from "./erp-suppliers";
+export * from "./erp-customers";
+export * from "./erp-orders";
 export * from "./relations";
