@@ -1,0 +1,27 @@
+kind = "web"
+previewPath = "/"
+title = "HRM + ERP Platform"
+version = "1.0.0"
+id = "artifacts/hrm-erp"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 24578
+
+[services.development]
+run = "pnpm --filter @workspace/hrm-erp run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/hrm-erp", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/hrm-erp/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "24578"
+BASE_PATH = "/"

@@ -2,21 +2,38 @@ openapi: 3.1.0
 info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
-  version: 0.1.0
-  description: API specification
+  version: 1.0.0
+  description: HRM + Distributor ERP Platform API — Phase 1 (Auth, Employees, Attendance, Leave)
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication & user profile
+  - name: companies
+    description: Company / tenant management
+  - name: departments
+    description: Department management
+  - name: job-titles
+    description: Job title management
+  - name: employees
+    description: Employee management
+  - name: attendance
+    description: Attendance tracking
+  - name: leave
+    description: Leave requests & balances
+  - name: dashboard
+    description: Executive dashboard KPIs
+
 paths:
+  # ── Health ─────────────────────────────────────────────────────────────
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +41,2083 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ── Auth ───────────────────────────────────────────────────────────────
+  /v1/auth/login:
+    post:
+      operationId: loginUser
+      tags: [auth]
+      summary: Login with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Login successful or MFA required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v1/auth/logout:
+    post:
+      operationId: logoutUser
+      tags: [auth]
+      summary: Logout — revoke refresh token
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LogoutInput"
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessMessage"
+
+  /v1/auth/refresh:
+    post:
+      operationId: refreshToken
+      tags: [auth]
+      summary: Refresh access token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshInput"
+      responses:
+        "200":
+          description: New access token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefreshResponse"
+        "401":
+          description: Invalid or expired refresh token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v1/auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current user profile
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+    patch:
+      operationId: updateMe
+      tags: [auth]
+      summary: Update current user profile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserProfileUpdate"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+
+  /v1/auth/change-password:
+    patch:
+      operationId: changePassword
+      tags: [auth]
+      summary: Change password
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordChangeInput"
+      responses:
+        "200":
+          description: Password changed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessMessage"
+
+  /v1/auth/forgot-password:
+    post:
+      operationId: forgotPassword
+      tags: [auth]
+      summary: Send password reset email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotPasswordInput"
+      responses:
+        "200":
+          description: Reset email sent (always returns 200 to prevent enumeration)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessMessage"
+
+  /v1/auth/reset-password:
+    post:
+      operationId: resetPassword
+      tags: [auth]
+      summary: Reset password with token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordInput"
+      responses:
+        "200":
+          description: Password reset successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessMessage"
+
+  /v1/auth/mfa/setup:
+    post:
+      operationId: setupMfa
+      tags: [auth]
+      summary: Enable MFA — returns QR code and secret
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: MFA setup info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MfaSetupResponse"
+
+  /v1/auth/mfa/verify:
+    post:
+      operationId: verifyMfa
+      tags: [auth]
+      summary: Verify MFA code and complete login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MfaVerifyInput"
+      responses:
+        "200":
+          description: MFA verified — returns full tokens
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenPair"
+
+  /v1/auth/mfa/disable:
+    post:
+      operationId: disableMfa
+      tags: [auth]
+      summary: Disable MFA
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MfaDisableInput"
+      responses:
+        "200":
+          description: MFA disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessMessage"
+
+  # ── Companies ──────────────────────────────────────────────────────────
+  /v1/companies:
+    post:
+      operationId: createCompany
+      tags: [companies]
+      summary: Create company (initial tenant setup)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompanyInput"
+      responses:
+        "201":
+          description: Company created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Company"
+
+  /v1/companies/me:
+    get:
+      operationId: getMyCompany
+      tags: [companies]
+      summary: Get current tenant company details
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Company details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Company"
+    patch:
+      operationId: updateMyCompany
+      tags: [companies]
+      summary: Update company settings
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompanyUpdate"
+      responses:
+        "200":
+          description: Updated company
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Company"
+
+  # ── Departments ────────────────────────────────────────────────────────
+  /v1/departments:
+    get:
+      operationId: listDepartments
+      tags: [departments]
+      summary: List all departments in the company
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Department list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Department"
+    post:
+      operationId: createDepartment
+      tags: [departments]
+      summary: Create a new department
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DepartmentInput"
+      responses:
+        "201":
+          description: Department created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Department"
+
+  /v1/departments/{id}:
+    get:
+      operationId: getDepartment
+      tags: [departments]
+      summary: Get department details
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Department details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Department"
+    patch:
+      operationId: updateDepartment
+      tags: [departments]
+      summary: Update department
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DepartmentUpdate"
+      responses:
+        "200":
+          description: Updated department
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Department"
+    delete:
+      operationId: deleteDepartment
+      tags: [departments]
+      summary: Delete department
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessMessage"
+
+  # ── Job Titles ─────────────────────────────────────────────────────────
+  /v1/job-titles:
+    get:
+      operationId: listJobTitles
+      tags: [job-titles]
+      summary: List all job titles
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Job title list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/JobTitle"
+    post:
+      operationId: createJobTitle
+      tags: [job-titles]
+      summary: Create a job title
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JobTitleInput"
+      responses:
+        "201":
+          description: Job title created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobTitle"
+
+  /v1/job-titles/{id}:
+    patch:
+      operationId: updateJobTitle
+      tags: [job-titles]
+      summary: Update a job title
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JobTitleUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobTitle"
+    delete:
+      operationId: deleteJobTitle
+      tags: [job-titles]
+      summary: Delete a job title
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessMessage"
+
+  # ── Employees ──────────────────────────────────────────────────────────
+  /v1/employees:
+    get:
+      operationId: listEmployees
+      tags: [employees]
+      summary: List employees (paginated, filterable)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: departmentId
+          in: query
+          schema:
+            type: ["string", "null"]
+        - name: status
+          in: query
+          schema:
+            type: ["string", "null"]
+            enum: [ACTIVE, ON_LEAVE, TERMINATED, RESIGNED, SUSPENDED, null]
+        - name: search
+          in: query
+          schema:
+            type: ["string", "null"]
+        - name: employmentType
+          in: query
+          schema:
+            type: ["string", "null"]
+            enum: [FULL_TIME, PART_TIME, CONTRACT, INTERN, null]
+      responses:
+        "200":
+          description: Paginated employee list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeListResponse"
+    post:
+      operationId: createEmployee
+      tags: [employees]
+      summary: Create a new employee
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmployeeInput"
+      responses:
+        "201":
+          description: Employee created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+
+  /v1/employees/org-chart:
+    get:
+      operationId: getOrgChart
+      tags: [employees]
+      summary: Get org chart tree
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Org chart tree
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OrgNode"
+
+  /v1/employees/{id}:
+    get:
+      operationId: getEmployee
+      tags: [employees]
+      summary: Get employee details
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Employee details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+    patch:
+      operationId: updateEmployee
+      tags: [employees]
+      summary: Update employee details
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmployeeUpdate"
+      responses:
+        "200":
+          description: Updated employee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+    delete:
+      operationId: terminateEmployee
+      tags: [employees]
+      summary: Terminate employee (soft delete)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Employee terminated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessMessage"
+
+  # ── Attendance ─────────────────────────────────────────────────────────
+  /v1/attendance:
+    get:
+      operationId: listAttendance
+      tags: [attendance]
+      summary: List attendance records
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: employeeId
+          in: query
+          schema:
+            type: ["string", "null"]
+        - name: from
+          in: query
+          schema:
+            type: ["string", "null"]
+            format: date
+        - name: to
+          in: query
+          schema:
+            type: ["string", "null"]
+            format: date
+        - name: status
+          in: query
+          schema:
+            type: ["string", "null"]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: Attendance records
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceListResponse"
+    post:
+      operationId: logAttendance
+      tags: [attendance]
+      summary: Log attendance (check-in or check-out)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AttendanceInput"
+      responses:
+        "201":
+          description: Attendance logged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceRecord"
+
+  /v1/attendance/summary:
+    get:
+      operationId: getAttendanceSummary
+      tags: [attendance]
+      summary: Monthly attendance summary for dashboard
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: month
+          in: query
+          schema:
+            type: integer
+        - name: year
+          in: query
+          schema:
+            type: integer
+        - name: departmentId
+          in: query
+          schema:
+            type: ["string", "null"]
+      responses:
+        "200":
+          description: Attendance summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceSummary"
+
+  /v1/attendance/{id}:
+    get:
+      operationId: getAttendance
+      tags: [attendance]
+      summary: Get a single attendance record
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Attendance record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceRecord"
+    patch:
+      operationId: updateAttendance
+      tags: [attendance]
+      summary: Update attendance record
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AttendanceUpdate"
+      responses:
+        "200":
+          description: Updated attendance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceRecord"
+
+  # ── Leave ──────────────────────────────────────────────────────────────
+  /v1/leaves:
+    get:
+      operationId: listLeaves
+      tags: [leave]
+      summary: List leave requests
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: employeeId
+          in: query
+          schema:
+            type: ["string", "null"]
+        - name: status
+          in: query
+          schema:
+            type: ["string", "null"]
+            enum: [PENDING, APPROVED, REJECTED, CANCELLED, null]
+        - name: leaveType
+          in: query
+          schema:
+            type: ["string", "null"]
+        - name: from
+          in: query
+          schema:
+            type: ["string", "null"]
+            format: date
+        - name: to
+          in: query
+          schema:
+            type: ["string", "null"]
+            format: date
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Leave requests
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaveListResponse"
+    post:
+      operationId: createLeaveRequest
+      tags: [leave]
+      summary: Submit a leave request
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeaveRequestInput"
+      responses:
+        "201":
+          description: Leave request submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaveRequest"
+
+  /v1/leaves/balances:
+    get:
+      operationId: getLeaveBalances
+      tags: [leave]
+      summary: Get leave balances for the current user (or specific employee)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: employeeId
+          in: query
+          schema:
+            type: ["string", "null"]
+        - name: year
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Leave balances
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LeaveBalance"
+
+  /v1/leaves/calendar:
+    get:
+      operationId: getLeaveCalendar
+      tags: [leave]
+      summary: Team leave calendar for a given month
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: month
+          in: query
+          schema:
+            type: integer
+        - name: year
+          in: query
+          schema:
+            type: integer
+        - name: departmentId
+          in: query
+          schema:
+            type: ["string", "null"]
+      responses:
+        "200":
+          description: Calendar events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LeaveCalendarEvent"
+
+  /v1/leaves/{id}:
+    get:
+      operationId: getLeave
+      tags: [leave]
+      summary: Get leave request details
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Leave request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaveRequest"
+    delete:
+      operationId: cancelLeave
+      tags: [leave]
+      summary: Cancel a pending leave request
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessMessage"
+
+  /v1/leaves/{id}/approve:
+    patch:
+      operationId: approveLeave
+      tags: [leave]
+      summary: Approve a leave request
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeaveActionInput"
+      responses:
+        "200":
+          description: Approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaveRequest"
+
+  /v1/leaves/{id}/reject:
+    patch:
+      operationId: rejectLeave
+      tags: [leave]
+      summary: Reject a leave request
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeaveActionInput"
+      responses:
+        "200":
+          description: Rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaveRequest"
+
+  # ── Leave Policies ─────────────────────────────────────────────────────
+  /v1/leave-policies:
+    get:
+      operationId: listLeavePolicies
+      tags: [leave]
+      summary: List leave policies
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Leave policies
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LeavePolicy"
+    post:
+      operationId: createLeavePolicy
+      tags: [leave]
+      summary: Create a leave policy
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeavePolicyInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeavePolicy"
+
+  /v1/leave-policies/{id}:
+    patch:
+      operationId: updateLeavePolicy
+      tags: [leave]
+      summary: Update a leave policy
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeavePolicyUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeavePolicy"
+
+  # ── Dashboard ──────────────────────────────────────────────────────────
+  /v1/dashboard/stats:
+    get:
+      operationId: getDashboardStats
+      tags: [dashboard]
+      summary: Executive dashboard KPIs
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Dashboard stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+
+# ── Security Scheme ────────────────────────────────────────────────────────
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
   schemas:
+    # ── Shared ─────────────────────────────────────────────────────────────
     HealthStatus:
       type: object
       properties:
         status:
           type: string
-      required:
-        - status
+      required: [status]
 
+    SuccessMessage:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        timestamp:
+          type: string
+      required: [success, message, timestamp]
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        error:
+          type: object
+          properties:
+            message:
+              type: string
+            code:
+              type: ["string", "null"]
+          required: [message]
+        timestamp:
+          type: string
+      required: [success, error, timestamp]
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        totalPages:
+          type: integer
+      required: [page, limit, total, totalPages]
+
+    # ── Auth Schemas ────────────────────────────────────────────────────────
+    LoginInput:
+      type: object
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+      required: [email, password]
+
+    TokenUser:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+        companyId:
+          type: ["string", "null"]
+        firstName:
+          type: ["string", "null"]
+        lastName:
+          type: ["string", "null"]
+      required: [id, email, role]
+
+    TokenPair:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        user:
+          $ref: "#/components/schemas/TokenUser"
+      required: [accessToken, refreshToken, user]
+
+    LoginResponse:
+      type: object
+      properties:
+        accessToken:
+          type: ["string", "null"]
+        refreshToken:
+          type: ["string", "null"]
+        user:
+          $ref: "#/components/schemas/TokenUser"
+        requiresMfa:
+          type: ["boolean", "null"]
+        mfaToken:
+          type: ["string", "null"]
+      required: []
+
+    LogoutInput:
+      type: object
+      properties:
+        refreshToken:
+          type: string
+      required: [refreshToken]
+
+    RefreshInput:
+      type: object
+      properties:
+        refreshToken:
+          type: string
+      required: [refreshToken]
+
+    RefreshResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+      required: [accessToken]
+
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+        isActive:
+          type: boolean
+        isEmailVerified:
+          type: boolean
+        mfaEnabled:
+          type: boolean
+        lastLoginAt:
+          type: ["string", "null"]
+        companyId:
+          type: ["string", "null"]
+        employeeId:
+          type: ["string", "null"]
+        firstName:
+          type: ["string", "null"]
+        lastName:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+      required: [id, email, role, isActive, isEmailVerified, mfaEnabled, createdAt]
+
+    UserProfileUpdate:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+
+    PasswordChangeInput:
+      type: object
+      properties:
+        currentPassword:
+          type: string
+        newPassword:
+          type: string
+      required: [currentPassword, newPassword]
+
+    ForgotPasswordInput:
+      type: object
+      properties:
+        email:
+          type: string
+      required: [email]
+
+    ResetPasswordInput:
+      type: object
+      properties:
+        token:
+          type: string
+        newPassword:
+          type: string
+      required: [token, newPassword]
+
+    MfaSetupResponse:
+      type: object
+      properties:
+        secret:
+          type: string
+        qrCodeUrl:
+          type: string
+        otpauthUrl:
+          type: string
+      required: [secret, qrCodeUrl, otpauthUrl]
+
+    MfaVerifyInput:
+      type: object
+      properties:
+        mfaToken:
+          type: string
+        code:
+          type: string
+      required: [mfaToken, code]
+
+    MfaDisableInput:
+      type: object
+      properties:
+        password:
+          type: string
+        code:
+          type: string
+      required: [password, code]
+
+    # ── Company Schemas ─────────────────────────────────────────────────────
+    Company:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        logoUrl:
+          type: ["string", "null"]
+        address:
+          type: ["string", "null"]
+        city:
+          type: ["string", "null"]
+        country:
+          type: ["string", "null"]
+        taxId:
+          type: ["string", "null"]
+        currency:
+          type: string
+        timezone:
+          type: string
+        fiscalYearStart:
+          type: integer
+        phone:
+          type: ["string", "null"]
+        website:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required: [id, name, currency, timezone, fiscalYearStart, createdAt, updatedAt]
+
+    CompanyInput:
+      type: object
+      properties:
+        name:
+          type: string
+        address:
+          type: ["string", "null"]
+        city:
+          type: ["string", "null"]
+        country:
+          type: ["string", "null"]
+        taxId:
+          type: ["string", "null"]
+        currency:
+          type: string
+          default: "INR"
+        timezone:
+          type: string
+          default: "Asia/Kolkata"
+        fiscalYearStart:
+          type: integer
+          default: 4
+        phone:
+          type: ["string", "null"]
+        website:
+          type: ["string", "null"]
+      required: [name]
+
+    CompanyUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        logoUrl:
+          type: ["string", "null"]
+        address:
+          type: ["string", "null"]
+        city:
+          type: ["string", "null"]
+        country:
+          type: ["string", "null"]
+        taxId:
+          type: ["string", "null"]
+        currency:
+          type: string
+        timezone:
+          type: string
+        fiscalYearStart:
+          type: integer
+        phone:
+          type: ["string", "null"]
+        website:
+          type: ["string", "null"]
+
+    # ── Department Schemas ──────────────────────────────────────────────────
+    Department:
+      type: object
+      properties:
+        id:
+          type: string
+        companyId:
+          type: string
+        name:
+          type: string
+        code:
+          type: string
+        parentId:
+          type: ["string", "null"]
+        headId:
+          type: ["string", "null"]
+        headName:
+          type: ["string", "null"]
+        employeeCount:
+          type: integer
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required: [id, companyId, name, code, createdAt, updatedAt]
+
+    DepartmentInput:
+      type: object
+      properties:
+        name:
+          type: string
+        code:
+          type: string
+        parentId:
+          type: ["string", "null"]
+        headId:
+          type: ["string", "null"]
+      required: [name, code]
+
+    DepartmentUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        code:
+          type: string
+        parentId:
+          type: ["string", "null"]
+        headId:
+          type: ["string", "null"]
+
+    # ── Job Title Schemas ───────────────────────────────────────────────────
+    JobTitle:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        level:
+          type: integer
+        minSalary:
+          type: ["number", "null"]
+        maxSalary:
+          type: ["number", "null"]
+        createdAt:
+          type: string
+      required: [id, title, level, createdAt]
+
+    JobTitleInput:
+      type: object
+      properties:
+        title:
+          type: string
+        level:
+          type: integer
+        minSalary:
+          type: ["number", "null"]
+        maxSalary:
+          type: ["number", "null"]
+      required: [title, level]
+
+    JobTitleUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        level:
+          type: integer
+        minSalary:
+          type: ["number", "null"]
+        maxSalary:
+          type: ["number", "null"]
+
+    # ── Employee Schemas ────────────────────────────────────────────────────
+    EmployeeSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        employeeCode:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        phone:
+          type: ["string", "null"]
+        photoUrl:
+          type: ["string", "null"]
+        department:
+          type: object
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+          required: [id, name]
+        jobTitle:
+          type: object
+          properties:
+            id:
+              type: string
+            title:
+              type: string
+          required: [id, title]
+        status:
+          type: string
+        employmentType:
+          type: string
+        hireDate:
+          type: string
+          format: date
+      required: [id, employeeCode, firstName, lastName, email, status, employmentType, hireDate]
+
+    Employee:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        employeeCode:
+          type: string
+        companyId:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        phone:
+          type: ["string", "null"]
+        gender:
+          type: ["string", "null"]
+        dateOfBirth:
+          type: ["string", "null"]
+        photoUrl:
+          type: ["string", "null"]
+        department:
+          type: object
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+          required: [id, name]
+        jobTitle:
+          type: object
+          properties:
+            id:
+              type: string
+            title:
+              type: string
+            level:
+              type: integer
+          required: [id, title, level]
+        manager:
+          $ref: "#/components/schemas/ManagerRef"
+        status:
+          type: string
+        employmentType:
+          type: string
+        hireDate:
+          type: string
+          format: date
+        probationEndDate:
+          type: ["string", "null"]
+        terminationDate:
+          type: ["string", "null"]
+        baseSalary:
+          type: number
+        currency:
+          type: string
+        address:
+          $ref: "#/components/schemas/AddressField"
+        emergencyContact:
+          $ref: "#/components/schemas/EmergencyContactField"
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required: [id, userId, employeeCode, companyId, firstName, lastName, email, status, employmentType, hireDate, baseSalary, currency, createdAt, updatedAt]
+
+    EmployeeListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/EmployeeSummary"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+        timestamp:
+          type: string
+      required: [success, data, pagination, timestamp]
+
+    EmployeeInput:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        password:
+          type: string
+        role:
+          type: string
+          default: "EMPLOYEE"
+        phone:
+          type: ["string", "null"]
+        gender:
+          type: ["string", "null"]
+        dateOfBirth:
+          type: ["string", "null"]
+        departmentId:
+          type: string
+        jobTitleId:
+          type: string
+        managerId:
+          type: ["string", "null"]
+        employmentType:
+          type: string
+          default: FULL_TIME
+        hireDate:
+          type: string
+          format: date
+        probationEndDate:
+          type: ["string", "null"]
+        baseSalary:
+          type: number
+        currency:
+          type: string
+          default: INR
+        address:
+          $ref: "#/components/schemas/AddressField"
+        emergencyContact:
+          $ref: "#/components/schemas/EmergencyContactField"
+      required: [firstName, lastName, email, password, departmentId, jobTitleId, hireDate, baseSalary]
+
+    EmployeeUpdate:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phone:
+          type: ["string", "null"]
+        gender:
+          type: ["string", "null"]
+        dateOfBirth:
+          type: ["string", "null"]
+        departmentId:
+          type: string
+        jobTitleId:
+          type: string
+        managerId:
+          type: ["string", "null"]
+        employmentType:
+          type: string
+        status:
+          type: string
+        probationEndDate:
+          type: ["string", "null"]
+        baseSalary:
+          type: number
+        address:
+          $ref: "#/components/schemas/AddressField"
+        emergencyContact:
+          $ref: "#/components/schemas/EmergencyContactField"
+
+    OrgNode:
+      type: object
+      properties:
+        id:
+          type: string
+        employeeCode:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        photoUrl:
+          type: ["string", "null"]
+        jobTitle:
+          type: string
+        department:
+          type: string
+        managerId:
+          type: ["string", "null"]
+        children:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrgNode"
+      required: [id, employeeCode, firstName, lastName, jobTitle, department]
+
+    # ── Attendance Schemas ──────────────────────────────────────────────────
+    AttendanceRecord:
+      type: object
+      properties:
+        id:
+          type: string
+        employeeId:
+          type: string
+        employeeName:
+          type: ["string", "null"]
+        date:
+          type: string
+          format: date
+        checkIn:
+          type: ["string", "null"]
+        checkOut:
+          type: ["string", "null"]
+        status:
+          type: string
+        hoursWorked:
+          type: ["number", "null"]
+        overtime:
+          type: ["number", "null"]
+        notes:
+          type: ["string", "null"]
+        source:
+          type: string
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required: [id, employeeId, date, status, source, createdAt, updatedAt]
+
+    AttendanceListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AttendanceRecord"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+        timestamp:
+          type: string
+      required: [success, data, pagination, timestamp]
+
+    AttendanceInput:
+      type: object
+      properties:
+        employeeId:
+          type: string
+        date:
+          type: string
+          format: date
+        checkIn:
+          type: ["string", "null"]
+        checkOut:
+          type: ["string", "null"]
+        status:
+          type: string
+          default: PRESENT
+        notes:
+          type: ["string", "null"]
+        source:
+          type: string
+          default: MANUAL
+      required: [employeeId, date]
+
+    AttendanceUpdate:
+      type: object
+      properties:
+        checkIn:
+          type: ["string", "null"]
+        checkOut:
+          type: ["string", "null"]
+        status:
+          type: string
+        notes:
+          type: ["string", "null"]
+        hoursWorked:
+          type: ["number", "null"]
+        overtime:
+          type: ["number", "null"]
+
+    AttendanceSummary:
+      type: object
+      properties:
+        month:
+          type: integer
+        year:
+          type: integer
+        totalDays:
+          type: integer
+        presentDays:
+          type: integer
+        absentDays:
+          type: integer
+        halfDays:
+          type: integer
+        leaveDays:
+          type: integer
+        holidays:
+          type: integer
+        averageHours:
+          type: number
+        totalOvertime:
+          type: number
+        attendanceRate:
+          type: number
+        byDepartment:
+          type: array
+          items:
+            type: object
+            properties:
+              departmentId:
+                type: string
+              departmentName:
+                type: string
+              presentCount:
+                type: integer
+              absentCount:
+                type: integer
+              attendanceRate:
+                type: number
+            required: [departmentId, departmentName, presentCount, absentCount, attendanceRate]
+      required: [month, year, totalDays, presentDays, absentDays, halfDays, leaveDays, holidays, averageHours, totalOvertime, attendanceRate]
+
+    # ── Leave Schemas ───────────────────────────────────────────────────────
+    LeaveRequest:
+      type: object
+      properties:
+        id:
+          type: string
+        employeeId:
+          type: string
+        employeeName:
+          type: ["string", "null"]
+        departmentName:
+          type: ["string", "null"]
+        leaveType:
+          type: string
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        totalDays:
+          type: number
+        reason:
+          type: string
+        status:
+          type: string
+        approverId:
+          type: ["string", "null"]
+        approvedAt:
+          type: ["string", "null"]
+        rejectionNote:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required: [id, employeeId, leaveType, startDate, endDate, totalDays, reason, status, createdAt, updatedAt]
+
+    LeaveListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/LeaveRequest"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+        timestamp:
+          type: string
+      required: [success, data, pagination, timestamp]
+
+    LeaveRequestInput:
+      type: object
+      properties:
+        leaveType:
+          type: string
+          enum: [ANNUAL, SICK, MATERNITY, PATERNITY, EMERGENCY, UNPAID, COMPENSATORY]
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        reason:
+          type: string
+        employeeId:
+          type: ["string", "null"]
+      required: [leaveType, startDate, endDate, reason]
+
+    LeaveActionInput:
+      type: object
+      properties:
+        note:
+          type: ["string", "null"]
+
+    LeaveBalance:
+      type: object
+      properties:
+        id:
+          type: string
+        employeeId:
+          type: string
+        leaveType:
+          type: string
+        year:
+          type: integer
+        allocated:
+          type: number
+        used:
+          type: number
+        pending:
+          type: number
+        remaining:
+          type: number
+      required: [id, employeeId, leaveType, year, allocated, used, pending, remaining]
+
+    LeaveCalendarEvent:
+      type: object
+      properties:
+        employeeId:
+          type: string
+        employeeName:
+          type: string
+        departmentName:
+          type: string
+        leaveType:
+          type: string
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        totalDays:
+          type: number
+        status:
+          type: string
+      required: [employeeId, employeeName, departmentName, leaveType, startDate, endDate, totalDays, status]
+
+    LeavePolicy:
+      type: object
+      properties:
+        id:
+          type: string
+        leaveType:
+          type: string
+        annualAllowance:
+          type: number
+        carryForward:
+          type: number
+        encashable:
+          type: boolean
+        requiresApproval:
+          type: boolean
+        minDaysNotice:
+          type: integer
+      required: [id, leaveType, annualAllowance, carryForward, encashable, requiresApproval, minDaysNotice]
+
+    LeavePolicyInput:
+      type: object
+      properties:
+        leaveType:
+          type: string
+          enum: [ANNUAL, SICK, MATERNITY, PATERNITY, EMERGENCY, UNPAID, COMPENSATORY]
+        annualAllowance:
+          type: number
+        carryForward:
+          type: number
+          default: 0
+        encashable:
+          type: boolean
+          default: false
+        requiresApproval:
+          type: boolean
+          default: true
+        minDaysNotice:
+          type: integer
+          default: 0
+      required: [leaveType, annualAllowance]
+
+    LeavePolicyUpdate:
+      type: object
+      properties:
+        annualAllowance:
+          type: number
+        carryForward:
+          type: number
+        encashable:
+          type: boolean
+        requiresApproval:
+          type: boolean
+        minDaysNotice:
+          type: integer
+
+    # ── Dashboard Schemas ───────────────────────────────────────────────────
+    DashboardStats:
+      type: object
+      properties:
+        totalEmployees:
+          type: integer
+        activeEmployees:
+          type: integer
+        onLeaveToday:
+          type: integer
+        presentToday:
+          type: integer
+        absentToday:
+          type: integer
+        pendingLeaveRequests:
+          type: integer
+        newHiresThisMonth:
+          type: integer
+        attendanceRateThisMonth:
+          type: number
+        departmentBreakdown:
+          type: array
+          items:
+            type: object
+            properties:
+              departmentId:
+                type: string
+              departmentName:
+                type: string
+              employeeCount:
+                type: integer
+              presentToday:
+                type: integer
+            required: [departmentId, departmentName, employeeCount, presentToday]
+        recentLeaveRequests:
+          type: array
+          items:
+            $ref: "#/components/schemas/LeaveRequest"
+        attendanceTrend:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+              present:
+                type: integer
+              absent:
+                type: integer
+              onLeave:
+                type: integer
+            required: [date, present, absent, onLeave]
+      required: [totalEmployees, activeEmployees, onLeaveToday, presentToday, absentToday, pendingLeaveRequests, newHiresThisMonth, attendanceRateThisMonth]
+
+    # ── Shared Embedded Schemas ─────────────────────────────────────────────
+
+    ManagerRef:
+      type: object
+      properties:
+        id:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        photoUrl:
+          type: string
+      required: [id, firstName, lastName]
+      additionalProperties: false
+
+    AddressField:
+      type: object
+      properties:
+        street:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        zip:
+          type: string
+        country:
+          type: string
+      additionalProperties: false
+
+    EmergencyContactField:
+      type: object
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+        relation:
+          type: string
+      additionalProperties: false
