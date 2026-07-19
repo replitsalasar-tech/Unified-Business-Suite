@@ -3,62 +3,152 @@ import { db } from "@workspace/db";
 import {
   usersTable,
   refreshTokensTable,
-  companiesTable,
 } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
-import { signAccessToken, signRefreshToken, verifyRefreshToken, hashToken } from "../lib/jwt";
+import {
+  signAccessToken,
+  signRefreshToken,
+  signMfaToken,
+  verifyMfaToken,
+  verifyRefreshToken,
+  hashToken,
+} from "../lib/jwt";
 import { hashPassword, verifyPassword, validatePasswordStrength } from "../lib/password";
 import { ok, fail } from "../lib/response";
 import { requireAuth, type AuthRequest } from "../middlewares/auth";
 import type { Request, Response } from "express";
 import speakeasy from "speakeasy";
 import qrcode from "qrcode";
-import { createId } from "@paralleldrive/cuid2";
 
 const router = Router();
 
-// POST /api/auth/login
+// POST /api/v1/auth/login
 router.post("/login", async (req: Request, res: Response) => {
   const { email, password } = req.body;
   if (!email || !password) return fail(res, 400, "Email and password required");
+
+  const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0].trim() ?? req.socket.remoteAddress ?? "";
 
   const user = await db.query.usersTable.findFirst({
     where: eq(usersTable.email, email.toLowerCase().trim()),
     with: { company: true },
   }).catch(() => null);
 
-  if (!user || !(await verifyPassword(password, user.passwordHash))) {
-    return fail(res, 401, "Invalid credentials");
-  }
-  if (!user.isActive) return fail(res, 403, "Account deactivated");
+  if (!user) return fail(res, 401, "Invalid credentials", "INVALID_CREDENTIALS");
 
+  // Account lockout check
+  if (user.lockedUntil && user.lockedUntil > new Date()) {
+    const minutesLeft = Math.ceil((user.lockedUntil.getTime() - Date.now()) / 60000);
+    return fail(res, 429, `Account locked. Try again in ${minutesLeft} minute(s).`, "ACCOUNT_LOCKED");
+  }
+
+  const passwordValid = await verifyPassword(password, user.passwordHash);
+
+  if (!passwordValid) {
+    const newCount = user.failedLoginCount + 1;
+    const shouldLock = newCount >= 5;
+    await db.update(usersTable).set({
+      failedLoginCount: newCount,
+      lockedUntil: shouldLock ? new Date(Date.now() + 30 * 60 * 1000) : null,
+      updatedAt: new Date(),
+    }).where(eq(usersTable.id, user.id));
+    return fail(res, 401, "Invalid credentials", "INVALID_CREDENTIALS");
+  }
+
+  if (!user.isActive) return fail(res, 403, "Account deactivated", "ACCOUNT_DEACTIVATED");
+
+  // Reset failed count on successful password check
+  await db.update(usersTable).set({
+    failedLoginCount: 0,
+    lockedUntil: null,
+    lastLoginAt: new Date(),
+    lastLoginIp: ip,
+    updatedAt: new Date(),
+  }).where(eq(usersTable.id, user.id));
+
+  // MFA challenge — return a short-lived token instead of full access
   if (user.mfaEnabled) {
-    // Return partial token — frontend should call /verify-mfa
-    return ok(res, { requiresMfa: true, userId: user.id });
+    const mfaToken = signMfaToken({ sub: user.id, companyId: user.companyId });
+    return ok(res, { requiresMfa: true, mfaToken });
   }
 
-  const { token: refreshToken, jti } = signRefreshToken({ sub: user.id, companyId: user.companyId });
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-
+  // Issue full tokens
+  const { token: refreshToken } = signRefreshToken({ sub: user.id, companyId: user.companyId });
   await db.insert(refreshTokensTable).values({
     userId: user.id,
     companyId: user.companyId,
     tokenHash: hashToken(refreshToken),
-    expiresAt,
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
   });
-
-  await db.update(usersTable).set({ lastLoginAt: new Date() }).where(eq(usersTable.id, user.id));
-
   const accessToken = signAccessToken({ sub: user.id, companyId: user.companyId, role: user.role });
 
   return ok(res, {
     accessToken,
     refreshToken,
-    user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, role: user.role, companyId: user.companyId },
+    user: {
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+      companyId: user.companyId,
+    },
   });
 });
 
-// POST /api/auth/refresh
+// POST /api/v1/auth/mfa/verify — complete MFA login challenge
+// Accepts mfaToken (from login) + TOTP code; no requireAuth
+router.post("/mfa/verify", async (req: Request, res: Response) => {
+  const { mfaToken, code } = req.body;
+  if (!mfaToken || !code) return fail(res, 400, "mfaToken and code required");
+
+  let payload;
+  try {
+    payload = verifyMfaToken(mfaToken);
+  } catch {
+    return fail(res, 401, "Invalid or expired MFA token", "INVALID_MFA_TOKEN");
+  }
+
+  const user = await db.query.usersTable.findFirst({
+    where: eq(usersTable.id, payload.sub),
+  });
+  if (!user || !user.mfaSecret || !user.mfaEnabled) {
+    return fail(res, 400, "MFA not set up for this account");
+  }
+
+  const verified = speakeasy.totp.verify({
+    secret: user.mfaSecret,
+    encoding: "base32",
+    token: code,
+    window: 1,
+  });
+  if (!verified) return fail(res, 400, "Invalid TOTP code", "INVALID_TOTP");
+
+  // Issue full tokens
+  const { token: refreshToken } = signRefreshToken({ sub: user.id, companyId: user.companyId });
+  await db.insert(refreshTokensTable).values({
+    userId: user.id,
+    companyId: user.companyId,
+    tokenHash: hashToken(refreshToken),
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+  });
+  const accessToken = signAccessToken({ sub: user.id, companyId: user.companyId, role: user.role });
+
+  return ok(res, {
+    accessToken,
+    refreshToken,
+    user: {
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+      companyId: user.companyId,
+    },
+  });
+});
+
+// POST /api/v1/auth/refresh
 router.post("/refresh", async (req: Request, res: Response) => {
   const { refreshToken } = req.body;
   if (!refreshToken) return fail(res, 400, "refreshToken required");
@@ -97,9 +187,8 @@ router.post("/refresh", async (req: Request, res: Response) => {
   return ok(res, { accessToken, refreshToken: newRefreshToken });
 });
 
-// POST /api/auth/logout
+// POST /api/v1/auth/logout
 router.post("/logout", requireAuth, async (req: Request, res: Response) => {
-  const auth = (req as AuthRequest).auth;
   const { refreshToken } = req.body;
   if (refreshToken) {
     await db.update(refreshTokensTable)
@@ -109,7 +198,7 @@ router.post("/logout", requireAuth, async (req: Request, res: Response) => {
   return ok(res, { message: "Logged out" });
 });
 
-// GET /api/auth/me
+// GET /api/v1/auth/me
 router.get("/me", requireAuth, async (req: Request, res: Response) => {
   const auth = (req as AuthRequest).auth;
   const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, auth.sub) });
@@ -118,8 +207,8 @@ router.get("/me", requireAuth, async (req: Request, res: Response) => {
   return ok(res, safe);
 });
 
-// PUT /api/auth/me
-router.put("/me", requireAuth, async (req: Request, res: Response) => {
+// PATCH /api/v1/auth/me
+router.patch("/me", requireAuth, async (req: Request, res: Response) => {
   const auth = (req as AuthRequest).auth;
   const { firstName, lastName, phone } = req.body;
   const [updated] = await db.update(usersTable)
@@ -130,7 +219,19 @@ router.put("/me", requireAuth, async (req: Request, res: Response) => {
   return ok(res, safe);
 });
 
-// POST /api/auth/change-password
+// PUT /api/v1/auth/me (alias for PATCH)
+router.put("/me", requireAuth, async (req: Request, res: Response) => {
+  const auth = (req as AuthRequest).auth;
+  const { firstName, lastName } = req.body;
+  const [updated] = await db.update(usersTable)
+    .set({ firstName, lastName, updatedAt: new Date() })
+    .where(eq(usersTable.id, auth.sub))
+    .returning();
+  const { passwordHash: _, mfaSecret: __, ...safe } = updated;
+  return ok(res, safe);
+});
+
+// POST /api/v1/auth/change-password
 router.post("/change-password", requireAuth, async (req: Request, res: Response) => {
   const auth = (req as AuthRequest).auth;
   const { currentPassword, newPassword } = req.body;
@@ -147,19 +248,36 @@ router.post("/change-password", requireAuth, async (req: Request, res: Response)
   return ok(res, { message: "Password changed" });
 });
 
-// POST /api/auth/forgot-password
-router.post("/forgot-password", async (req: Request, res: Response) => {
-  // TODO: send email via email provider
+// PATCH /api/v1/auth/change-password (alias)
+router.patch("/change-password", requireAuth, async (req: Request, res: Response) => {
+  const auth = (req as AuthRequest).auth;
+  const { currentPassword, newPassword } = req.body;
+  const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, auth.sub) });
+  if (!user) return fail(res, 404, "User not found");
+  if (!(await verifyPassword(currentPassword, user.passwordHash))) {
+    return fail(res, 400, "Current password is incorrect");
+  }
+  const err = validatePasswordStrength(newPassword);
+  if (err) return fail(res, 400, err);
+  await db.update(usersTable)
+    .set({ passwordHash: await hashPassword(newPassword), updatedAt: new Date() })
+    .where(eq(usersTable.id, auth.sub));
+  return ok(res, { message: "Password changed" });
+});
+
+// POST /api/v1/auth/forgot-password
+router.post("/forgot-password", async (_req: Request, res: Response) => {
+  // TODO: send email via email provider (intentionally deferred — wire up nodemailer first)
   return ok(res, { message: "If that email is registered, a reset link has been sent" });
 });
 
-// POST /api/auth/reset-password
+// POST /api/v1/auth/reset-password
 router.post("/reset-password", async (_req: Request, res: Response) => {
   // TODO: implement token lookup and password reset
   return fail(res, 501, "Not implemented — wire up email provider first");
 });
 
-// POST /api/auth/mfa/setup
+// POST /api/v1/auth/mfa/setup — generate TOTP secret for authenticated user
 router.post("/mfa/setup", requireAuth, async (req: Request, res: Response) => {
   const auth = (req as AuthRequest).auth;
   const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, auth.sub) });
@@ -170,19 +288,7 @@ router.post("/mfa/setup", requireAuth, async (req: Request, res: Response) => {
   return ok(res, { secret: secret.base32, qrCode: qrCodeUrl });
 });
 
-// POST /api/auth/mfa/verify
-router.post("/mfa/verify", requireAuth, async (req: Request, res: Response) => {
-  const auth = (req as AuthRequest).auth;
-  const { totp } = req.body;
-  const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, auth.sub) });
-  if (!user || !user.mfaSecret) return fail(res, 400, "MFA not set up");
-  const verified = speakeasy.totp.verify({ secret: user.mfaSecret, encoding: "base32", token: totp, window: 1 });
-  if (!verified) return fail(res, 400, "Invalid TOTP code");
-  await db.update(usersTable).set({ mfaEnabled: true }).where(eq(usersTable.id, auth.sub));
-  return ok(res, { message: "MFA enabled" });
-});
-
-// POST /api/auth/mfa/disable
+// POST /api/v1/auth/mfa/disable — disable MFA for authenticated user
 router.post("/mfa/disable", requireAuth, async (req: Request, res: Response) => {
   const auth = (req as AuthRequest).auth;
   const { totp } = req.body;

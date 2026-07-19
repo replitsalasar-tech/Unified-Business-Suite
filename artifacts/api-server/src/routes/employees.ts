@@ -6,7 +6,7 @@ import {
   departmentsTable,
   jobTitlesTable,
 } from "@workspace/db";
-import { eq, and, ilike, count, sql } from "drizzle-orm";
+import { eq, and, or, ilike, count, sql } from "drizzle-orm";
 import { ok, paginated, fail } from "../lib/response";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth";
 import { hashPassword } from "../lib/password";
@@ -22,10 +22,25 @@ router.get("/", async (req: Request, res: Response) => {
   const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
   const offset = (page - 1) * limit;
 
-  const baseWhere = eq(employeesTable.companyId, auth.companyId);
+  const { search, status, departmentId } = req.query as Record<string, string>;
+
+  const conditions = [eq(employeesTable.companyId, auth.companyId)];
+  if (status) conditions.push(eq(employeesTable.status, status as any));
+  if (departmentId) conditions.push(eq(employeesTable.departmentId, departmentId));
+  const baseWhere = and(...conditions);
 
   const rows = await db.query.employeesTable.findMany({
-    where: baseWhere,
+    where: search
+      ? and(
+          ...conditions,
+          or(
+            ilike(employeesTable.firstName, `%${search}%`),
+            ilike(employeesTable.lastName, `%${search}%`),
+            ilike(employeesTable.email, `%${search}%`),
+            ilike(employeesTable.employeeCode, `%${search}%`),
+          )
+        )
+      : baseWhere,
     with: {
       department: { columns: { id: true, name: true } },
       jobTitle: { columns: { id: true, title: true, level: true } },

@@ -6,7 +6,7 @@ import {
   leaveRequestsTable,
   employeesTable,
 } from "@workspace/db";
-import { eq, and, count } from "drizzle-orm";
+import { eq, and, count, sql } from "drizzle-orm";
 import { ok, paginated, fail } from "../lib/response";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth";
 import type { Request, Response } from "express";
@@ -120,31 +120,85 @@ router.post("/requests", async (req: Request, res: Response) => {
     where: and(eq(employeesTable.id, employeeId), eq(employeesTable.companyId, auth.companyId)),
   });
   if (!emp) return fail(res, 400, "Invalid employee");
+
   const [row] = await db.insert(leaveRequestsTable).values({
     companyId: auth.companyId, employeeId, policyId,
     startDate, endDate, days: String(days), type, reason,
   }).returning();
+
+  // Increment pending balance
+  const year = new Date(startDate).getFullYear();
+  await db.update(leaveBalancesTable)
+    .set({ pending: sql`${leaveBalancesTable.pending} + ${String(days)}`, updatedAt: new Date() })
+    .where(and(
+      eq(leaveBalancesTable.employeeId, employeeId),
+      eq(leaveBalancesTable.policyId, policyId),
+      eq(leaveBalancesTable.year, year),
+    ));
+
   return ok(res, row, 201);
 });
 
 router.post("/requests/:id/approve", requireRole("ADMIN", "HR_MANAGER", "MANAGER", "SUPER_ADMIN"), async (req: Request, res: Response) => {
   const auth = (req as AuthRequest).auth;
+
+  // Fetch the request first to get days/policyId/employeeId for balance update
+  const existing = await db.query.leaveRequestsTable.findFirst({
+    where: and(eq(leaveRequestsTable.id, req.params.id), eq(leaveRequestsTable.companyId, auth.companyId)),
+  });
+  if (!existing) return fail(res, 404, "Leave request not found");
+  if (existing.status !== "PENDING") return fail(res, 400, `Cannot approve a ${existing.status.toLowerCase()} request`);
+
   const [row] = await db.update(leaveRequestsTable)
     .set({ status: "APPROVED", approvedBy: auth.sub, approvedAt: new Date(), updatedAt: new Date() })
-    .where(and(eq(leaveRequestsTable.id, req.params.id), eq(leaveRequestsTable.companyId, auth.companyId)))
+    .where(eq(leaveRequestsTable.id, req.params.id))
     .returning();
-  if (!row) return fail(res, 404, "Leave request not found");
+
+  // Move days from pending → used in leave balance
+  const year = new Date(existing.startDate).getFullYear();
+  await db.update(leaveBalancesTable)
+    .set({
+      used: sql`${leaveBalancesTable.used} + ${existing.days}`,
+      pending: sql`GREATEST(0, ${leaveBalancesTable.pending} - ${existing.days})`,
+      updatedAt: new Date(),
+    })
+    .where(and(
+      eq(leaveBalancesTable.employeeId, existing.employeeId),
+      eq(leaveBalancesTable.policyId, existing.policyId),
+      eq(leaveBalancesTable.year, year),
+    ));
+
   return ok(res, row);
 });
 
 router.post("/requests/:id/reject", requireRole("ADMIN", "HR_MANAGER", "MANAGER", "SUPER_ADMIN"), async (req: Request, res: Response) => {
   const auth = (req as AuthRequest).auth;
   const { reason } = req.body;
+
+  const existing = await db.query.leaveRequestsTable.findFirst({
+    where: and(eq(leaveRequestsTable.id, req.params.id), eq(leaveRequestsTable.companyId, auth.companyId)),
+  });
+  if (!existing) return fail(res, 404, "Leave request not found");
+  if (existing.status !== "PENDING") return fail(res, 400, `Cannot reject a ${existing.status.toLowerCase()} request`);
+
   const [row] = await db.update(leaveRequestsTable)
     .set({ status: "REJECTED", rejectedReason: reason, updatedAt: new Date() })
-    .where(and(eq(leaveRequestsTable.id, req.params.id), eq(leaveRequestsTable.companyId, auth.companyId)))
+    .where(eq(leaveRequestsTable.id, req.params.id))
     .returning();
-  if (!row) return fail(res, 404, "Leave request not found");
+
+  // Release pending balance back
+  const year = new Date(existing.startDate).getFullYear();
+  await db.update(leaveBalancesTable)
+    .set({
+      pending: sql`GREATEST(0, ${leaveBalancesTable.pending} - ${existing.days})`,
+      updatedAt: new Date(),
+    })
+    .where(and(
+      eq(leaveBalancesTable.employeeId, existing.employeeId),
+      eq(leaveBalancesTable.policyId, existing.policyId),
+      eq(leaveBalancesTable.year, year),
+    ));
+
   return ok(res, row);
 });
 

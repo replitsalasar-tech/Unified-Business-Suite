@@ -3,6 +3,7 @@ import {
   text,
   boolean,
   timestamp,
+  integer,
   pgEnum,
 } from "drizzle-orm/pg-core";
 import { createId } from "@paralleldrive/cuid2";
@@ -14,6 +15,12 @@ export const userRoleEnum = pgEnum("user_role", [
   "HR_MANAGER",
   "MANAGER",
   "EMPLOYEE",
+  "PAYROLL_MANAGER",
+  "DEPARTMENT_HEAD",
+  "DISTRIBUTOR_ADMIN",
+  "DISTRIBUTOR_MANAGER",
+  "SALES_REP",
+  "CUSTOMER_PORTAL",
 ]);
 
 export const usersTable = pgTable("users", {
@@ -32,6 +39,9 @@ export const usersTable = pgTable("users", {
   mfaEnabled: boolean("mfa_enabled").notNull().default(false),
   mfaSecret: text("mfa_secret"),
   lastLoginAt: timestamp("last_login_at"),
+  lastLoginIp: text("last_login_ip"),
+  failedLoginCount: integer("failed_login_count").notNull().default(0),
+  lockedUntil: timestamp("locked_until"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

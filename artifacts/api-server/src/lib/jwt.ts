@@ -61,3 +61,29 @@ export function verifyRefreshToken(token: string): RefreshTokenPayload {
 export function hashToken(token: string): string {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
+
+// Short-lived token used during MFA login challenge (5 minutes)
+export interface MfaTokenPayload {
+  sub: string;
+  companyId: string;
+  type: "mfa_required";
+}
+
+export function signMfaToken(payload: Omit<MfaTokenPayload, "type">): string {
+  return jwt.sign(
+    { ...payload, type: "mfa_required" },
+    getSecret("JWT_ACCESS_SECRET", ACCESS_SECRET),
+    { expiresIn: "5m" }
+  );
+}
+
+export function verifyMfaToken(token: string): MfaTokenPayload {
+  const payload = jwt.verify(
+    token,
+    getSecret("JWT_ACCESS_SECRET", ACCESS_SECRET)
+  ) as MfaTokenPayload;
+  if (payload.type !== "mfa_required") {
+    throw new Error("Invalid token type");
+  }
+  return payload;
+}

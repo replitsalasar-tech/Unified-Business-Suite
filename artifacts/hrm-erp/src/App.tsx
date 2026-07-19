@@ -11,6 +11,7 @@ import Dashboard from '@/pages/dashboard';
 import Employees from '@/pages/employees';
 import NewEmployee from '@/pages/employees/new';
 import EmployeeDetail from '@/pages/employees/detail';
+import EmployeeEdit from '@/pages/employees/edit';
 import Departments from '@/pages/departments';
 import JobTitles from '@/pages/job-titles';
 import Attendance from '@/pages/attendance';
@@ -38,6 +39,7 @@ function Router() {
       </Route>
       <Route path="/dashboard"><PrivateRoute component={Dashboard} /></Route>
       <Route path="/employees/new"><PrivateRoute component={NewEmployee} /></Route>
+      <Route path="/employees/:id/edit"><PrivateRoute component={EmployeeEdit} /></Route>
       <Route path="/employees/:id"><PrivateRoute component={EmployeeDetail} /></Route>
       <Route path="/employees"><PrivateRoute component={Employees} /></Route>
       <Route path="/departments"><PrivateRoute component={Departments} /></Route>

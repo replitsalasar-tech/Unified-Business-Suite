@@ -11,14 +11,17 @@ import dashboardRouter from "./dashboard";
 
 const router: IRouter = Router();
 
+// Health check lives at /api/healthz (no versioning)
 router.use(healthRouter);
-router.use("/auth", authRouter);
-router.use("/companies", companiesRouter);
-router.use("/departments", departmentsRouter);
-router.use("/job-titles", jobTitlesRouter);
-router.use("/employees", employeesRouter);
-router.use("/attendance", attendanceRouter);
-router.use("/leave", leaveRouter);
-router.use("/dashboard", dashboardRouter);
+
+// Versioned API routes — all under /api/v1/...
+router.use("/v1/auth", authRouter);
+router.use("/v1/companies", companiesRouter);
+router.use("/v1/departments", departmentsRouter);
+router.use("/v1/job-titles", jobTitlesRouter);
+router.use("/v1/employees", employeesRouter);
+router.use("/v1/attendance", attendanceRouter);
+router.use("/v1/leave", leaveRouter);
+router.use("/v1/dashboard", dashboardRouter);
 
 export default router;

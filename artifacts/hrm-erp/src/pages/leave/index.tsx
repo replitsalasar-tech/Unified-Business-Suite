@@ -23,9 +23,14 @@ export default function LeaveRequests() {
 
   const leaves = data?.data || [];
   
+  const getEmployeeName = (leave: any) => {
+    if (leave.employee) return `${leave.employee.firstName} ${leave.employee.lastName}`;
+    return leave.employeeName || 'Unknown';
+  };
+
   const filteredLeaves = leaves.filter(leave => 
     leave.status === activeTab && 
-    (leave.employeeName || '').toLowerCase().includes(searchTerm.toLowerCase())
+    getEmployeeName(leave).toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleAction = async (id: string, action: 'approve' | 'reject') => {
@@ -103,11 +108,11 @@ export default function LeaveRequests() {
                     {filteredLeaves.map((leave) => (
                       <tr key={leave.id} className="border-b transition-colors hover:bg-muted/50">
                         <td className="p-4 align-middle">
-                          <div className="font-medium">{leave.employeeName}</div>
-                          <div className="text-xs text-muted-foreground">{leave.departmentName || 'Unknown Dept'}</div>
+                          <div className="font-medium">{getEmployeeName(leave)}</div>
+                          <div className="text-xs text-muted-foreground">{leave.employee?.employeeCode || ''}</div>
                         </td>
                         <td className="p-4 align-middle">
-                          <Badge variant="outline">{leave.leaveType}</Badge>
+                          <Badge variant="outline">{leave.type || leave.leaveType}</Badge>
                         </td>
                         <td className="p-4 align-middle">
                           <div className="text-xs">
@@ -117,7 +122,7 @@ export default function LeaveRequests() {
                         <td className="p-4 align-middle">
                           <span className="flex items-center gap-1">
                             <Clock className="w-3 h-3 text-muted-foreground" />
-                            {leave.totalDays}
+                            {leave.days ?? leave.totalDays}
                           </span>
                         </td>
                         <td className="p-4 align-middle">

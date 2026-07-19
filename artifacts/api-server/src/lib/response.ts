@@ -26,6 +26,11 @@ export function paginated<T>(
   });
 }
 
-export function fail(res: Response, status: number, message: string) {
-  res.status(status).json({ success: false, error: message });
+export function fail(res: Response, status: number, message: string, code?: string) {
+  res.status(status).json({
+    success: false,
+    error: message,
+    ...(code && { code }),
+    timestamp: new Date().toISOString(),
+  });
 }
